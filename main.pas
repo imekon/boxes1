@@ -18,7 +18,6 @@ type
   public
     constructor Create(physics: TKraft); virtual;
     procedure Draw; virtual; abstract;
-    procedure Step(delta: double); virtual; abstract;
   end;
 
   { TPlane }
@@ -32,7 +31,6 @@ type
     constructor Create(physics: TKraft); override;
     destructor Destroy; override;
     procedure Draw; override;
-    procedure Step(delta: double); override;
   end;
 
   { TBox }
@@ -44,11 +42,9 @@ type
     m_x, m_y, m_z, m_size: double;
 
   public
-    constructor Create(physics: TKraft); override;
+    constructor Create(physics: TKraft; ax, ay, az, asize: double);
     destructor Destroy; override;
     procedure Draw; override;
-    procedure Step(delta: double); override;
-    procedure SetTranslate(x, y, z: double);
 
     property X: double read m_x;
     property Y: double read m_y;
@@ -110,18 +106,13 @@ begin
   DrawPlane(Vec3(0, 0, 0), Vec2(100, 100), YELLOW);
 end;
 
-procedure TPlane.Step(delta: double);
-begin
-  //
-end;
-
 { TBox }
 
-constructor TBox.Create(physics: TKraft);
+constructor TBox.Create(physics: TKraft; ax, ay, az, asize: double);
 begin
   inherited Create(physics);
 
-  m_size := 2;
+  m_size := asize;
 
   m_body := TKraftRigidBody.Create(m_physics);
   m_body.SetRigidBodyType(krbtDYNAMIC);
@@ -131,12 +122,15 @@ begin
   m_shape.Density := 100;
 
   m_body.Finish;
-  m_body.SetWorldTransformation(Matrix4x4Translate(m_x, m_y, m_z));
+  m_body.SetWorldTransformation(Matrix4x4Translate(ax, ay, az));
   m_body.CollisionGroups := [0];
 end;
 
 destructor TBox.Destroy;
 begin
+  m_shape.Free;
+  m_body.Free;
+
   inherited Destroy;
 end;
 
@@ -151,24 +145,12 @@ begin
   rlPopMatrix;
 end;
 
-procedure TBox.Step(delta: double);
-begin
-end;
-
-procedure TBox.SetTranslate(x, y, z: double);
-begin
-  m_x := x;
-  m_y := y;
-  m_z := z;
-  m_body.SetWorldTransformation(Matrix4x4Translate(m_x, m_y, m_z));
-end;
-
 { TGame }
 
 constructor TGame.Create;
 const
   BOX_X = -8;
-  BOX_Y = 24;
+  BOX_Y = 12;
   BOX_Z = 2;
 
 begin
@@ -191,8 +173,7 @@ begin
   m_physics.Gravity.y := -9.81;
 
   m_plane := TPlane.Create(m_physics);
-  m_box := TBox.Create(m_physics);
-  m_box.SetTranslate(BOX_X, BOX_Y, BOX_Z);
+  m_box := TBox.Create(m_physics, BOX_X, BOX_Y, BOX_Z, 2);
 end;
 
 destructor TGame.Destroy;
@@ -213,8 +194,6 @@ begin
   delta := GetFrameTime;
 
   m_physics.Step(delta);
-  m_plane.Step(delta);
-  m_box.Step(delta);
 
   mx := 0;
   my := 0;
