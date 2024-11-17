@@ -14,9 +14,10 @@ type
   TItem = class
   protected
     m_physics: TKraft;
+    m_colour: TColorB;
 
   public
-    constructor Create(physics: TKraft); virtual;
+    constructor Create(physics: TKraft; colour: TColorB); virtual;
     procedure Draw; virtual; abstract;
   end;
 
@@ -30,7 +31,7 @@ type
     m_shape: TKraftShapePlane;
 
   public
-    constructor Create(physics: TKraft); override;
+    constructor Create(physics: TKraft; colour: TColorB); override;
     destructor Destroy; override;
     procedure Draw; override;
   end;
@@ -38,19 +39,35 @@ type
   { TBox }
 
   TBox = class(TItem)
-  private
+  protected
     m_body: TKraftRigidBody;
     m_shape: TKraftShapeBox;
     m_x, m_y, m_z, m_size: double;
 
   public
-    constructor Create(physics: TKraft; ax, ay, az, asize: double);
+    constructor Create(physics: TKraft; colour: TColorB; ax, ay, az, asize: double); virtual;
     destructor Destroy; override;
-    procedure Draw; override;
 
     property X: double read m_x;
     property Y: double read m_y;
     property Z: double read m_z;
+    property Size: double read m_size;
+  end;
+
+  { TStaticBox }
+
+  TStaticBox = class(TBox)
+  public
+    constructor Create(physics: TKraft; colour: TColorB; ax, ay, az, asize: double); override;
+    procedure Draw; override;
+  end;
+
+  { TDynamicBox }
+
+  TDynamicBox = class(TBox)
+  public
+    constructor Create(physics: TKraft; colour: TColorB; ax, ay, az, asize: double); override;
+    procedure Draw; override;
   end;
 
   { TGame }
@@ -72,16 +89,17 @@ implementation
 
 { TItem }
 
-constructor TItem.Create(physics: TKraft);
+constructor TItem.Create(physics: TKraft; colour: TColorB);
 begin
   m_physics := physics;
+  m_colour := colour;
 end;
 
 { TPlane }
 
-constructor TPlane.Create(physics: TKraft);
+constructor TPlane.Create(physics: TKraft; colour: TColorB);
 begin
-  inherited Create(physics);
+  inherited Create(physics, colour);
 
   m_body := TKraftRigidBody.Create(m_physics);
   m_body.SetRigidBodyType(krbtSTATIC);
@@ -104,16 +122,58 @@ end;
 
 procedure TPlane.Draw;
 begin
-  DrawPlane(Vec3(0, 0, 0), Vec2(100, 100), YELLOW);
+  DrawPlane(Vec3(0, 0, 0), Vec2(100, 100), m_colour);
 end;
 
 { TBox }
 
-constructor TBox.Create(physics: TKraft; ax, ay, az, asize: double);
+constructor TBox.Create(physics: TKraft; colour: TColorB; ax, ay, az, asize: double);
 begin
-  inherited Create(physics);
+  inherited Create(physics, colour);
+
+  m_x := ax;
+  m_y := ay;
+  m_z := az;
 
   m_size := asize;
+end;
+
+destructor TBox.Destroy;
+begin
+  m_shape.Free;
+  m_body.Free;
+
+  inherited Destroy;
+end;
+
+{ TStaticBox }
+
+constructor TStaticBox.Create(physics: TKraft; colour: TColorB; ax, ay, az, asize: double);
+begin
+  inherited Create(physics, colour, ax, ay, az, asize);
+
+  m_body := TKraftRigidBody.Create(m_physics);
+  m_body.SetRigidBodyType(krbtSTATIC);
+
+  m_shape := TKraftShapeBox.Create(m_physics, m_body, Vector3(m_size, m_size, m_size));
+  m_shape.Restitution := 0.3;
+  m_shape.Density := 100;
+
+  m_body.Finish;
+  m_body.SetWorldTransformation(Matrix4x4Translate(ax, ay, az));
+  m_body.CollisionGroups := [0];
+end;
+
+procedure TStaticBox.Draw;
+begin
+  DrawCube(Vec3(m_x, m_y, m_z), m_size * 2, m_size * 2, m_size * 2, m_colour);
+end;
+
+{ TDynamicBox }
+
+constructor TDynamicBox.Create(physics: TKraft; colour: TColorB; ax, ay, az, asize: double);
+begin
+  inherited Create(physics, colour, ax, ay, az, asize);
 
   m_body := TKraftRigidBody.Create(m_physics);
   m_body.SetRigidBodyType(krbtDYNAMIC);
@@ -127,21 +187,13 @@ begin
   m_body.CollisionGroups := [0];
 end;
 
-destructor TBox.Destroy;
-begin
-  m_shape.Free;
-  m_body.Free;
-
-  inherited Destroy;
-end;
-
-procedure TBox.Draw;
+procedure TDynamicBox.Draw;
 begin
   rlPushMatrix;
 
   rlLoadIdentity;
   rlMultMatrixf(@m_body.WorldTransform);
-  DrawCube(Vec3(0, 0, 0), m_size * 2, m_size * 2, m_size * 2, RED);
+  DrawCube(Vec3(0, 0, 0), m_size * 2, m_size * 2, m_size * 2, m_colour);
 
   rlPopMatrix;
 end;
@@ -175,11 +227,12 @@ begin
 
   m_items := TItemList.Create;
 
-  m_items.Add(TPlane.Create(m_physics));
-  m_items.Add(TBox.Create(m_physics, BOX_X, BOX_Y, BOX_Z, 2));
-  m_items.Add(TBox.Create(m_physics, BOX_X + 2, BOX_Y + 5, BOX_Z, 2));
-  m_items.Add(TBox.Create(m_physics, BOX_X + 4, BOX_Y + 10, BOX_Z, 2));
-  m_items.Add(TBox.Create(m_physics, BOX_X + 6, BOX_Y + 15, BOX_Z, 2));
+  m_items.Add(TPlane.Create(m_physics, YELLOW));
+
+  m_items.Add(TDynamicBox.Create(m_physics, RED, BOX_X, BOX_Y, BOX_Z, 2));
+  m_items.Add(TDynamicBox.Create(m_physics, GREEN, BOX_X + 2, BOX_Y + 5, BOX_Z, 1.8));
+  m_items.Add(TDynamicBox.Create(m_physics, BLUE, BOX_X + 4, BOX_Y + 10, BOX_Z, 1.7));
+  m_items.Add(TDynamicBox.Create(m_physics, BROWN, BOX_X + 6, BOX_Y + 15, BOX_Z, 2.1));
 end;
 
 destructor TGame.Destroy;
@@ -240,8 +293,10 @@ var
 
 begin
   BeginMode3D(m_camera);
+
   for item in m_items do
     item.Draw;
+
   EndMode3D;
 end;
 
