@@ -2,6 +2,6 @@
 
 A simple box on a plane, in Free Pascal with Raylib
 
-Copyright (c) 2024 Pete Goodwin
+Physics: https://github.com/BeRo1985/kraft
 
-![video](boxes.mp4)
+Copyright (c) 2024 Pete Goodwin
