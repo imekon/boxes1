@@ -5,7 +5,7 @@ unit main;
 interface
 
 uses
-  Classes, SysUtils, raylib, utils, kraft;
+  Classes, SysUtils, raylib, rlgl, utils, kraft;
 
 type
 
@@ -142,17 +142,17 @@ end;
 
 procedure TBox.Draw;
 begin
-  DrawCube(Vec3(m_x, m_y, m_z), m_size * 2, m_size * 2, m_size * 2, RED);
+  rlPushMatrix;
+
+  rlLoadIdentity;
+  rlMultMatrixf(@m_body.WorldTransform);
+  DrawCube(Vec3(0, 0, 0), m_size * 2, m_size * 2, m_size * 2, RED);
+
+  rlPopMatrix;
 end;
 
 procedure TBox.Step(delta: double);
 begin
-  // Get the translation
-  m_x := m_body.WorldTransform[3, 0];
-  m_y := m_body.WorldTransform[3, 1];
-  m_z := m_body.WorldTransform[3, 2];
-
-  // TODO: get the rotation!
 end;
 
 procedure TBox.SetTranslate(x, y, z: double);

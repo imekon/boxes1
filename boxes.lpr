@@ -6,7 +6,7 @@ uses
   cmem,
   {uncomment if necessary}
   //raymath,
-  //rlgl,
+  rlgl,
   raylib, main, utils;
 
 const
