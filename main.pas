@@ -5,26 +5,54 @@ unit main;
 interface
 
 uses
-  Classes, SysUtils, fgl, raylib, utils, kraft;
+  Classes, SysUtils, raylib, utils, kraft;
 
 type
 
+  { TItem }
+
+  TItem = class
+  protected
+    m_physics: TKraft;
+
+  public
+    constructor Create(physics: TKraft); virtual;
+    procedure Draw; virtual; abstract;
+    procedure Step(delta: double); virtual; abstract;
+  end;
+
   { TPlane }
 
-  TPlane = class
+  TPlane = class(TItem)
+  private
+    m_body: TKraftRigidBody;
+    m_shape: TKraftShapePlane;
+
   public
-    constructor Create;
+    constructor Create(physics: TKraft); override;
     destructor Destroy; override;
-    procedure Draw;
+    procedure Draw; override;
+    procedure Step(delta: double); override;
   end;
 
   { TBox }
 
-  TBox = class
+  TBox = class(TItem)
+  private
+    m_body: TKraftRigidBody;
+    m_shape: TKraftShapeBox;
+    m_x, m_y, m_z, m_size: double;
+
   public
-    constructor Create;
+    constructor Create(physics: TKraft); override;
     destructor Destroy; override;
-    procedure Draw;
+    procedure Draw; override;
+    procedure Step(delta: double); override;
+    procedure SetTranslate(x, y, z: double);
+
+    property X: double read m_x;
+    property Y: double read m_y;
+    property Z: double read m_z;
   end;
 
   { TGame }
@@ -45,15 +73,35 @@ type
 
 implementation
 
+{ TItem }
+
+constructor TItem.Create(physics: TKraft);
+begin
+  m_physics := physics;
+end;
+
 { TPlane }
 
-constructor TPlane.Create;
+constructor TPlane.Create(physics: TKraft);
 begin
+  inherited Create(physics);
 
+  m_body := TKraftRigidBody.Create(m_physics);
+  m_body.SetRigidBodyType(krbtSTATIC);
+
+  m_shape := TKraftShapePlane.Create(m_physics, m_body,
+    Plane(Vector3Norm(Vector3(0.0, 1.0, 0.0)), 0.0));
+  m_shape.Restitution := 0.3;
+  m_body.Finish;
+  m_body.SetWorldTransformation(Matrix4x4Translate(0.0, 0.0, 0.0));
+  m_body.CollisionGroups := [0];
 end;
 
 destructor TPlane.Destroy;
 begin
+  m_shape.Free;
+  m_body.Free;
+
   inherited Destroy;
 end;
 
@@ -62,11 +110,29 @@ begin
   DrawPlane(Vec3(0, 0, 0), Vec2(100, 100), YELLOW);
 end;
 
+procedure TPlane.Step(delta: double);
+begin
+  //
+end;
+
 { TBox }
 
-constructor TBox.Create;
+constructor TBox.Create(physics: TKraft);
 begin
+  inherited Create(physics);
 
+  m_size := 2;
+
+  m_body := TKraftRigidBody.Create(m_physics);
+  m_body.SetRigidBodyType(krbtDYNAMIC);
+
+  m_shape := TKraftShapeBox.Create(m_physics, m_body, Vector3(m_size, m_size, m_size));
+  m_shape.Restitution := 0.3;
+  m_shape.Density := 100;
+
+  m_body.Finish;
+  m_body.SetWorldTransformation(Matrix4x4Translate(m_x, m_y, m_z));
+  m_body.CollisionGroups := [0];
 end;
 
 destructor TBox.Destroy;
@@ -76,25 +142,57 @@ end;
 
 procedure TBox.Draw;
 begin
-  DrawCube(Vec3(-8, 12, 2), 4, 4, 4, RED);
+  DrawCube(Vec3(m_x, m_y, m_z), m_size * 2, m_size * 2, m_size * 2, RED);
+end;
+
+procedure TBox.Step(delta: double);
+begin
+  // Get the translation
+  m_x := m_body.WorldTransform[3, 0];
+  m_y := m_body.WorldTransform[3, 1];
+  m_z := m_body.WorldTransform[3, 2];
+
+  // TODO: get the rotation!
+end;
+
+procedure TBox.SetTranslate(x, y, z: double);
+begin
+  m_x := x;
+  m_y := y;
+  m_z := z;
+  m_body.SetWorldTransformation(Matrix4x4Translate(m_x, m_y, m_z));
 end;
 
 { TGame }
 
 constructor TGame.Create;
+const
+  BOX_X = -8;
+  BOX_Y = 24;
+  BOX_Z = 2;
+
 begin
   Randomize;
 
-  m_camera.position := Vec3(0, 2, 4);
-  m_camera.target := Vec3(0, 2, 0);
+  m_camera.position := Vec3(0, 2, 32);
+  m_camera.target := Vec3(BOX_X, BOX_Y, BOX_Z);
   m_camera.up := Vec3(0, 1, 0);
   m_camera.fovy := 60;
   m_camera.projection := CAMERA_PERSPECTIVE;
 
-  m_plane := TPlane.Create;
-  m_box := TBox.Create;
-
   DisableCursor;
+
+  m_physics := TKraft.Create(-1);
+  m_physics.SetFrequency(120);
+  m_physics.VelocityIterations := 8;
+  m_physics.PositionIterations := 3;
+  m_physics.SpeculativeIterations := 8;
+  m_physics.TimeOfImpactIterations := 20;
+  m_physics.Gravity.y := -9.81;
+
+  m_plane := TPlane.Create(m_physics);
+  m_box := TBox.Create(m_physics);
+  m_box.SetTranslate(BOX_X, BOX_Y, BOX_Z);
 end;
 
 destructor TGame.Destroy;
@@ -102,14 +200,22 @@ begin
   m_box.Free;
   m_plane.Free;
 
+  m_physics.Free;
+
   inherited Destroy;
 end;
 
 procedure TGame.Update;
 var
-  mx, my, mz: double;
+  mx, my, mz, delta: double;
 
 begin
+  delta := GetFrameTime;
+
+  m_physics.Step(delta);
+  m_plane.Step(delta);
+  m_box.Step(delta);
+
   mx := 0;
   my := 0;
   mz := 0;
