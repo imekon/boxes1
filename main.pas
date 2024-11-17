@@ -5,7 +5,7 @@ unit main;
 interface
 
 uses
-  Classes, SysUtils, raylib, rlgl, utils, kraft;
+  Classes, SysUtils, fgl, raylib, rlgl, utils, kraft;
 
 type
 
@@ -19,6 +19,8 @@ type
     constructor Create(physics: TKraft); virtual;
     procedure Draw; virtual; abstract;
   end;
+
+  TItemList = specialize TFPGList<TItem>;
 
   { TPlane }
 
@@ -57,8 +59,7 @@ type
   private
     m_physics: TKraft;
     m_camera: TCamera;
-    m_plane: TPlane;
-    m_box: TBox;
+    m_items: TItemList;
   public
     constructor Create;
     destructor Destroy; override;
@@ -172,14 +173,24 @@ begin
   m_physics.TimeOfImpactIterations := 20;
   m_physics.Gravity.y := -9.81;
 
-  m_plane := TPlane.Create(m_physics);
-  m_box := TBox.Create(m_physics, BOX_X, BOX_Y, BOX_Z, 2);
+  m_items := TItemList.Create;
+
+  m_items.Add(TPlane.Create(m_physics));
+  m_items.Add(TBox.Create(m_physics, BOX_X, BOX_Y, BOX_Z, 2));
+  m_items.Add(TBox.Create(m_physics, BOX_X + 2, BOX_Y + 5, BOX_Z, 2));
+  m_items.Add(TBox.Create(m_physics, BOX_X + 4, BOX_Y + 10, BOX_Z, 2));
+  m_items.Add(TBox.Create(m_physics, BOX_X + 6, BOX_Y + 15, BOX_Z, 2));
 end;
 
 destructor TGame.Destroy;
+var
+  item: TItem;
+
 begin
-  m_box.Free;
-  m_plane.Free;
+  for item in m_items do
+    item.Free;
+
+  m_items.Free;
 
   m_physics.Free;
 
@@ -224,10 +235,13 @@ begin
 end;
 
 procedure TGame.Draw3D;
+var
+  item: TItem;
+
 begin
   BeginMode3D(m_camera);
-    m_plane.Draw;
-    m_box.Draw;
+  for item in m_items do
+    item.Draw;
   EndMode3D;
 end;
 
